@@ -19,22 +19,34 @@ bool RayTracer::CastRay(const Ray &ray, Hit &h,
 	// intersect each of the quads
 	for (int i = 0; i < mesh->numOriginalQuads(); i++) {
 		Face *f = mesh->getOriginalQuad(i);
-		if (f->intersect(ray, h, args->intersect_backfacing))
+		Hit temphit;
+		if (f->intersect(ray, temphit, args->intersect_backfacing)) {
 			answer = true;
+			if (temphit.getT() < h.getT())
+				h = temphit;
+		}
 	}
 
 	// intersect each of the primitives (either the patches, or the original primitives)
 	if (use_rasterized_patches) {
 		for (int i = 0; i < mesh->numRasterizedPrimitiveFaces(); i++) {
 			Face *f = mesh->getRasterizedPrimitiveFace(i);
-			if (f->intersect(ray, h, args->intersect_backfacing))
+			Hit temphit;
+			if (f->intersect(ray, h, args->intersect_backfacing)) {
 				answer = true;
+				if (temphit.getT() < h.getT())
+					h = temphit;
+			}
 		}
 	} else {
 		int num_primitives = mesh->numPrimitives();
 		for (int i = 0; i < num_primitives; i++) {
-			if (mesh->getPrimitive(i)->intersect(ray, h))
+			Hit temphit;
+			if (mesh->getPrimitive(i)->intersect(ray, h)) {
 				answer = true;
+				if (temphit.getT() < h.getT())
+					h = temphit;
+			}
 		}
 	}
 	return answer;
@@ -102,8 +114,17 @@ glm::vec3 RayTracer::TraceRay(Ray &ray, Hit &hit, int bounce_count) const {
 				/ float(M_PI * distToLightCentroid * distToLightCentroid);
 
 		// add the lighting contribution from this particular light at this point
-		// (fix this to check for blockers between the light & this surface)
-		answer += m->Shade(ray, hit, dirToLightCentroid, myLightColor, args);
+		// (fix this to check for blockers between the light & this surface
+
+		Ray tempray(ray.pointAtParameter(hit.getT() * .9999f),
+				dirToLightCentroid);
+		Hit temphit;
+		CastRay(tempray, temphit, false);
+		RayTree::AddShadowSegment(tempray, 0.0f, temphit.getT());
+		if (glm::length(temphit.getMaterial()->getEmittedColor()) > 0.001f)
+			answer += m->Shade(ray, hit, dirToLightCentroid, myLightColor,
+					args);
+
 	}
 
 	// ----------------------------------------------
@@ -114,12 +135,12 @@ glm::vec3 RayTracer::TraceRay(Ray &ray, Hit &hit, int bounce_count) const {
 
 		glm::vec3 vel = ray.getDirection();
 		glm::vec3 newvel = vel - 2 * (glm::dot(vel, normal)) * normal;
-		glm::vec3 neworg = ray.pointAtParameter(hit.getT()*.99f);
+		glm::vec3 neworg = ray.pointAtParameter(hit.getT() * .9999f);
 		Ray tempray(neworg, newvel);
 		Hit temphit;
 		answer += reflectiveColor
 				* TraceRay(tempray, temphit, bounce_count - 1);
-		RayTree::AddReflectedSegment(tempray, 0.0f, temphit.get_t());
+		RayTree::AddReflectedSegment(tempray, 0.0f, temphit.getT());
 	}
 	// =================================
 	// ASSIGNMENT:  ADD REFLECTIVE LOGIC
