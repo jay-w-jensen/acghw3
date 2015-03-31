@@ -32,7 +32,7 @@ bool RayTracer::CastRay(const Ray &ray, Hit &h,
 		for (int i = 0; i < mesh->numRasterizedPrimitiveFaces(); i++) {
 			Face *f = mesh->getRasterizedPrimitiveFace(i);
 			Hit temphit;
-			if (f->intersect(ray, h, args->intersect_backfacing)) {
+			if (f->intersect(ray, temphit, args->intersect_backfacing)) {
 				answer = true;
 				if (temphit.getT() < h.getT())
 					h = temphit;
@@ -42,7 +42,7 @@ bool RayTracer::CastRay(const Ray &ray, Hit &h,
 		int num_primitives = mesh->numPrimitives();
 		for (int i = 0; i < num_primitives; i++) {
 			Hit temphit;
-			if (mesh->getPrimitive(i)->intersect(ray, h)) {
+			if (mesh->getPrimitive(i)->intersect(ray, temphit)) {
 				answer = true;
 				if (temphit.getT() < h.getT())
 					h = temphit;
@@ -115,15 +115,34 @@ glm::vec3 RayTracer::TraceRay(Ray &ray, Hit &hit, int bounce_count) const {
 
 		// add the lighting contribution from this particular light at this point
 		// (fix this to check for blockers between the light & this surface
-
-		Ray tempray(ray.pointAtParameter(hit.getT() * .9999f),
-				dirToLightCentroid);
-		Hit temphit;
-		CastRay(tempray, temphit, false);
-		RayTree::AddShadowSegment(tempray, 0.0f, temphit.getT());
-		if (glm::length(temphit.getMaterial()->getEmittedColor()) > 0.001f)
-			answer += m->Shade(ray, hit, dirToLightCentroid, myLightColor,
-					args);
+		if (args->num_shadow_samples == 1) {
+			Ray tempray(ray.pointAtParameter(hit.getT() * .9999f),
+					dirToLightCentroid);
+			Hit temphit;
+			CastRay(tempray, temphit, false);
+			RayTree::AddShadowSegment(tempray, 0.0f, temphit.getT());
+			if (glm::length(temphit.getMaterial()->getEmittedColor())
+					> 0.001f) {
+				answer += m->Shade(ray, hit, dirToLightCentroid, myLightColor,
+						args);
+			}
+		} else {
+			for (int count = 0; count < args->num_shadow_samples; count++) {
+				glm::vec3 dirToRandPoint = glm::normalize(
+						f->RandomPoint() - point);
+				Ray tempray(ray.pointAtParameter(hit.getT() * .9999f),
+						dirToRandPoint);
+				Hit temphit;
+				CastRay(tempray, temphit, false);
+				RayTree::AddShadowSegment(tempray, 0.0f, temphit.getT());
+				if (!temphit.getMaterial()) continue;
+				if (glm::length(temphit.getMaterial()->getEmittedColor())
+						> 0.001f) {
+					answer += m->Shade(ray, hit, dirToLightCentroid,
+							myLightColor, args)/(float)(args->num_shadow_samples);
+				}
+			}
+		}
 
 	}
 

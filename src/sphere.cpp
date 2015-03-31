@@ -32,16 +32,16 @@ bool Sphere::intersect(const Ray &r, Hit &h) const {
 			return false;
 		if (tplus < 0)
 			h.set(tminus, material,
-					glm::normalize(center - r.pointAtParameter(tminus)));
+					glm::normalize(-center + r.pointAtParameter(tminus)));
 		else if (tminus < 0)
 			h.set(tplus, material,
-					glm::normalize(center - r.pointAtParameter(tplus)));
+					glm::normalize(-center + r.pointAtParameter(tplus)));
 		else if (tminus < tplus)
 			h.set(tminus, material,
-					glm::normalize(center - r.pointAtParameter(tminus)));
+					glm::normalize(-center + r.pointAtParameter(tminus)));
 		else
 			h.set(tplus, material,
-					glm::normalize(center - r.pointAtParameter(tplus)));
+					glm::normalize(-center + r.pointAtParameter(tplus)));
 		return true;
 	}
 	// return true if the sphere was intersected, and update the hit
